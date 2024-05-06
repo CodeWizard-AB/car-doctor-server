@@ -57,14 +57,30 @@ async function run() {
 			res.send(result);
 		});
 
+		app.get("/service-bookings/title", async (req, res) => {
+			let query = {};
+			if (req.query?.title) query = { title: req.query.title };
+			const result = await bookingCollect.find(query).toArray();
+			res.send(result);
+		});
+
 		app.get("/service-bookings/:id", async (req, res) => {
-			const result = await bookingCollect.findOne(req.params.id);
+			const query = { _id: new ObjectId(req.params.id) };
+			const result = await bookingCollect.findOne(query);
 			res.send(result);
 		});
 
 		app.delete("/service-bookings/:id", async (req, res) => {
 			const query = { _id: new ObjectId(req.params.id) };
 			const result = await bookingCollect.deleteOne(query);
+			res.send(result);
+		});
+
+		app.patch("/service-bookings/:id", async (req, res) => {
+			const filter = { _id: new ObjectId(req.params.id) };
+			const options = { upsert: true };
+			const updated = { $set: req.body };
+			const result = await bookingCollect.updateOne(filter, updated, options);
 			res.send(result);
 		});
 
