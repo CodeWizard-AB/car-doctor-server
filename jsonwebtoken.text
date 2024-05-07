@@ -1,0 +1,18 @@
+**** Making data secure ****
+
+The concept: 
+assign two tokens to each person (access token, refresh token)
+access token - header, payload , signature , identification
+refresh token - to recreate an token to get access the data
+
+**** jsonwebtoken **** 
+
+1. generate a token by using jwt.sign
+2. create api set to cookie , httpOnly, secure, sameSite
+3. from client side: with Credentials true
+4. cors setup origin and credentials: true
+
+**** secure api calls **** 
+1. install cookies parser and use it as middleware
+2. req.cookies
+3. 

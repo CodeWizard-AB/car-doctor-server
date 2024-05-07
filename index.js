@@ -2,14 +2,45 @@ import express from "express";
 import cors from "cors";
 import mongodb from "mongodb";
 import dotenv from "dotenv";
+import jsonwebtoken from "jsonwebtoken";
+import cookieParser from "cookie-parser";
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 4000;
 
 // * middleware
-app.use(cors());
+app.use(
+	cors({
+		origin: [
+			"https://car-doctor-103b0.web.app",
+			"https://car-doctor-103b0.firebaseapp.com",
+		],
+		credentials: true,
+	})
+);
 app.use(express.json());
+app.use(cookieParser());
+
+// * custom middleware
+const logger = (req, res, next) => {
+	console.log(req.url);
+	next();
+};
+
+const verifyToken = (req, res, next) => {
+	const token = req.cookies.token;
+	console.log("credential:", token);
+	// * no token available
+	if (!token) return res.status(401).send({ message: "unauthorized access" });
+
+	// * verify token
+	jsonwebtoken.verify(token, process.env.ACCESS_TOKEN, (error, decoded) => {
+		if (error) return res.status(401).send({ message: "unauthorized" });
+		req.user = decoded;
+		next();
+	});
+};
 
 const { MongoClient, ServerApiVersion, ObjectId } = mongodb;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.kmw7lj5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -31,7 +62,29 @@ async function run() {
 		const serviceCollect = client.db("DoctorDB").collection("CarServices");
 		const bookingCollect = client.db("DoctorDB").collection("BookServies");
 
-		app.get("/car-services", async (req, res) => {
+		// * auth api
+
+		app.post("/jwt", (req, res) => {
+			const token = jsonwebtoken.sign(req.body, process.env.ACCESS_TOKEN, {
+				expiresIn: "1h",
+			});
+			res
+				.cookie("token", token, {
+					httpOnly: true,
+					secure: true,
+					sameSite: "none",
+				})
+				.send({ success: true });
+		});
+
+		app.post("/logout", (req, res) => {
+			console.log("logged out", req.body);
+			res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+		});
+
+		// * service api
+
+		app.get("/car-services", logger, async (req, res) => {
 			const result = await serviceCollect.find().toArray();
 			res.send(result);
 		});
@@ -45,21 +98,22 @@ async function run() {
 			res.send(result);
 		});
 
+		// * booking api
+
 		app.post("/service-bookings", async (req, res) => {
 			const result = await bookingCollect.insertOne(req.body);
 			res.send(result);
 		});
 
-		app.get("/service-bookings", async (req, res) => {
+		app.get("/service-bookings", verifyToken, async (req, res) => {
+			console.log("verified user:", req.user);
 			let query = {};
-			if (req.query?.email) query = { email: req.query.email };
-			const result = await bookingCollect.find(query).toArray();
-			res.send(result);
-		});
 
-		app.get("/service-bookings/title", async (req, res) => {
-			let query = {};
-			if (req.query?.title) query = { title: req.query.title };
+			if (req.user.email !== req.query.email) {
+				return res.status(403).send({ message: "forbidden access" });
+			}
+
+			if (req.query?.email) query = { email: req.query.email };
 			const result = await bookingCollect.find(query).toArray();
 			res.send(result);
 		});
