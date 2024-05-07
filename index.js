@@ -13,6 +13,7 @@ const port = process.env.PORT || 4000;
 app.use(
 	cors({
 		origin: [
+			"http://localhost:5173",
 			"https://car-doctor-103b0.web.app",
 			"https://car-doctor-103b0.firebaseapp.com",
 		],
@@ -46,6 +47,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = mongodb;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.kmw7lj5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
+
 const client = new MongoClient(uri, {
 	serverApi: {
 		version: ServerApiVersion.v1,
@@ -54,10 +56,16 @@ const client = new MongoClient(uri, {
 	},
 });
 
+const cookieOptions = {
+	httpOnly: true,
+	sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+	secure: process.env.NODE_ENV === "production" ? true : false,
+};
+
 async function run() {
 	try {
 		// Connect the client to the server	(optional starting in v4.7)
-		await client.connect();
+		// await client.connect();
 
 		const serviceCollect = client.db("DoctorDB").collection("CarServices");
 		const bookingCollect = client.db("DoctorDB").collection("BookServies");
@@ -68,18 +76,15 @@ async function run() {
 			const token = jsonwebtoken.sign(req.body, process.env.ACCESS_TOKEN, {
 				expiresIn: "1h",
 			});
-			res
-				.cookie("token", token, {
-					httpOnly: true,
-					secure: true,
-					sameSite: "none",
-				})
-				.send({ success: true });
+
+			res.cookie("token", token, cookieOptions).send({ success: true });
 		});
 
 		app.post("/logout", (req, res) => {
 			console.log("logged out", req.body);
-			res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+			res
+				.clearCookie("token", { ...cookieOptions, maxAge: 0 })
+				.send({ success: true });
 		});
 
 		// * service api
@@ -139,7 +144,7 @@ async function run() {
 		});
 
 		// Send a ping to confirm a successful connection
-		await client.db("admin").command({ ping: 1 });
+		// await client.db("admin").command({ ping: 1 });
 		console.log(
 			"Pinged your deployment. You successfully connected to MongoDB!"
 		);
